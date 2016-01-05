@@ -1,0 +1,68 @@
+# =============== #
+# Unity generated #
+# =============== #
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Uu]nity[Gg]enerated/
+
+# ===================================== #
+# Visual Studio / MonoDevelop generated #
+# ===================================== #
+ExportedObj/
+*.svd
+*.userprefs
+*.csproj
+*.pidb
+*.suo
+*.sln
+*.user
+*.unityproj
+*.booproj
+ 
+# ============ #
+# OS generated #
+# ============ #
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon
+ehthumbs.db
+Thumbs.db
+Thumbs.db.meta
+
+# ========= #
+# InControl #
+# ========= #
+/Assets/InControl/Examples/TouchControls
+/Assets/InControl/Examples/TouchControls.meta
+/Assets/InControl/Source/Touch
+/Assets/InControl/Source/Touch.meta
+/Assets/InControl/Source/OuyaEverywhere
+/Assets/InControl/Source/OuyaEverywhere.meta
+/Assets/InControl/Source/GUI
+/Assets/InControl/Source/GUI.meta
+
+# ============== #
+# UnityTestTools #
+# ============== #
+/Assets/UnityTestTools
+/Assets/UnityTestTools.meta
+
+# ===== #
+# Other #
+# ===== #
+*.unitypackage
+/[Bb]in/
+/Assets/StreamingAssets/
+/Assets/Sound/
+/Assets/Music/
+/steam-build-output/
+
+/Assets/Gizmos/LocalizableText Icon.png.meta
+/Assets/Gizmos/Thumbs.db.meta
+/PlayerData/
+/SAVETEMP/
+/Screenshots/
