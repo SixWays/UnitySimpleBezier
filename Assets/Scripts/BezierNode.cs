@@ -15,47 +15,29 @@ public class BezierNode : MonoBehaviour {
 
 	#region Handle properties
 	[SerializeField][HideInInspector]
-	private Vector3 _h1Local = new Vector3(0,0,-1f);
-	private Vector3 _h1Global;
-	private bool _h1Set = false;
+	private Vector3 _h1 = new Vector3(0,0,-1f);
 	public Vector3 h1 {
 		get {
-			if (!_h1Set){
-				h1 = LocalToGlobal(_h1Local);
-			}
-			return _h1Global;
+			return transform.TransformPoint(_h1);
 		}
 		set {
-			if (value != _h1Global){
-				_h1Global = value;
-				Vector3 v = GlobalToLocal(_h1Global);
-				_h1Local = v;
-				DoSymmetry(_h1Local, _h2Local, (h)=>{
-					h2 = h;
-				});
-			}
+			_h1 = transform.InverseTransformPoint(value);
+			DoSymmetry(_h1,_h2,(h)=>{
+				h2=h;
+			});
 		}
 	}
 	[SerializeField][HideInInspector]
-	private Vector3 _h2Local = new Vector3(0,0,1f);
-	private Vector3 _h2Global;
-	private bool _h2Set = false;
+	private Vector3 _h2 = new Vector3(0,0,1f);
 	public Vector3 h2 {
 		get {
-			if (!_h2Set){
-				h2 = LocalToGlobal(_h2Local);
-			}
-			return _h2Global;
+			return transform.TransformPoint(_h2);
 		}
 		set {
-			if (value != _h2Global){
-				_h2Global = value;
-				Vector3 v = GlobalToLocal(_h2Global);
-				_h2Local = v;
-				DoSymmetry(_h2Local, _h1Local, (h)=>{
-					h1 = h;
-				});
-			}
+			_h2 = transform.InverseTransformPoint(value);
+			DoSymmetry(_h2,_h1,(h)=>{
+				h1=h;
+			});
 		}
 	}
 	#endregion
@@ -85,11 +67,11 @@ public class BezierNode : MonoBehaviour {
 		switch (hm){
 		case Symmetry.FULL:
 			// Mirror entire local vector
-			setProperty( LocalToGlobal(-master) );
+			setProperty( transform.TransformPoint(-master) );
 			break;
 		case Symmetry.ANGLE:
 			// Mirror local vector, then scale to original length
-			setProperty( LocalToGlobal(-master * (slave.magnitude / master.magnitude)) );
+			setProperty( transform.TransformPoint(-master * (slave.magnitude / master.magnitude)) );
 			break;
 		}
 		_symmetry = hm;
@@ -160,7 +142,7 @@ public class BezierNode : MonoBehaviour {
 	private void Update(){
 		if (_symmetry != _lastSymmetry){
 			_lastSymmetry = _symmetry;
-			DoSymmetry(_h1Local, _h2Local, (h)=>{
+			DoSymmetry(_h1, _h2, (h)=>{
 				h2 = h;
 			});
 		}
