@@ -4,10 +4,13 @@ using System.Collections;
 
 public class BezierCurve : MonoBehaviour {
 	public enum HandleType {CUBE, SPHERE}
-	
+
+	[Header("Runtime Settings")]
 	[SerializeField]
 	private float _strengthScale = 1;
 	public float strengthScale {get {return _strengthScale;}}
+	[SerializeField][Tooltip("How many subdivisions per sector to use to calculate length of sector. Only used when nodes have changed, so can be high for static curves.")]
+	private float _integrationSegments = 10;
 
 #if UNITY_EDITOR
 	[Header("Handles Preview")]
@@ -119,5 +122,66 @@ public class BezierCurve : MonoBehaviour {
 		result += (3 * u * t*t * handle2);
 		result += (t*t*t * end);
 		return result;
+	}
+	public Vector3 Bezier(float t){
+		if (t< 0 || t > 1f){
+			throw new System.ArgumentOutOfRangeException("t is fraction along total curve and must be 0<=t<=1");
+		}
+
+		BezierNode[] nodes = GetComponentsInChildren<BezierNode>();
+		if (nodes == null || nodes.Length == 0){
+			throw new MissingComponentException("No BezierNodes found parented to BezierCurve. Cannot calculate spline.");
+		}
+
+		if (t==0){
+			return nodes[0].transform.position;
+		}
+		if (t==1){
+			return nodes[nodes.Length-1].transform.position;
+		}
+
+		// Estimate length of each sector
+		float[] lengths = new float[nodes.Length-1];
+		// Loop over node pairs
+		for (int i=0; i<nodes.Length-1; ++i){
+			BezierNode prev = nodes[i];
+			BezierNode next = nodes[i+1];
+			
+			Vector3 lastPos = prev.transform.position;
+			Vector3 nextPos = next.transform.position;
+
+			lengths[i] = 0;
+			Vector3 p0 = lastPos;
+			Vector3 p1 = lastPos;
+			float p = 0;
+			// Loop over integration segments along sector
+			for (int j=0; j<_integrationSegments; ++j){
+				p1 = Bezier(p, lastPos, prev.h2, next.h1, nextPos);
+				lengths[i] += Vector3.Distance(p1,p0);
+				p0 = p1;
+			}
+		}
+
+		// Estimate total length
+		float length = 0;
+		foreach (float f in lengths){
+			length += f;
+		}
+
+		// Work out which sector t refers to
+		t *= length;
+		length = 0;
+		int sector = 0;
+		for (; sector<lengths.Length; ++sector){
+			length += lengths[sector];
+			if (length > t){
+				break;
+			}
+		}
+
+		// Recalculate t as fraction of this segment
+		t = (t - length) / lengths[sector];
+
+		return Bezier(t, nodes[sector].transform.position, nodes[sector].h2, nodes[sector+1].h1, nodes[sector+1].transform.position);
 	}
 }
