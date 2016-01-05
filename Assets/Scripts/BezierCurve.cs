@@ -10,12 +10,12 @@ namespace Sigtrap {
 		[SerializeField]
 		private float _strengthScale = 1;
 		public float strengthScale {get {return _strengthScale;}}
-		[SerializeField][Tooltip("Higher values give more accurate AVERAGE speeds of sectors. Shape is always accurate. Instantaneous speed not currently constant.")]
+		[SerializeField][Tooltip("Higher values give more accurate instantaneous speeds/lengths along path. Shape is always accurate.")]
 		private int _integrationSegments = 10;
 
 	#if UNITY_EDITOR
 		[Header("Handles Preview")]
-		[SerializeField][Range(1,25)][Tooltip("Only affects magenta preview. Does not affect shape at runtime.")]
+		[SerializeField][Range(1,25)][Tooltip("Only affects preview. Does not affect shape at runtime.")]
 		private int _previewSegments = 10;
 		[SerializeField]
 		private float _handleScale = 1;
@@ -170,7 +170,8 @@ namespace Sigtrap {
 			}
 
 			// Estimate length of each sector
-			float[] lengths = new float[nodes.Length-1];
+			float[] sectors = new float[nodes.Length-1];
+			float[,] segments = new float[sectors.Length,_integrationSegments];
 			// Loop over node pairs
 			for (int i=0; i<nodes.Length-1; ++i){
 				BezierNode prev = nodes[i];
@@ -179,38 +180,67 @@ namespace Sigtrap {
 				Vector3 lastPos = prev.transform.position;
 				Vector3 nextPos = next.transform.position;
 
-				lengths[i] = 0;
+				sectors[i] = 0;
 				Vector3 p0 = lastPos;
 				Vector3 p1 = lastPos;
 				float p = 0;
 				// Loop over integration segments along sector
 				for (int j=0; j<_integrationSegments; ++j){
 					p1 = Bezier(p, lastPos, prev.h2, next.h1, nextPos);
-					lengths[i] += Vector3.Distance(p1,p0);
+					// Store local length
+					segments[i,j] = Vector3.Distance(p1,p0);
+					sectors[i] += segments[i,j];
+					// Move to next segment
 					p0 = p1;
 					p += 1f/(float)_integrationSegments;
+				}
+				// Get each local length as fraction, for approximate t remapping
+				for (int j=0; j<_integrationSegments; ++j){
+					segments[i,j] /= sectors[i];
 				}
 			}
 
 			// Estimate total length
 			float length = 0;
-			foreach (float f in lengths){
+			foreach (float f in sectors){
 				length += f;
 			}
 
-			// Work out which sector t refers to
+			// Work out which sector t falls in
 			t *= length;
 			length = 0;
 			int sector = 0;
-			for (; sector<lengths.Length; ++sector){
-				if (length + lengths[sector] > t){
+			for (; sector<sectors.Length; ++sector){
+				if (length + sectors[sector] > t){
 					break;
 				}
-				length += lengths[sector];
+				length += sectors[sector];
 			}
 
 			// Remove offset of previous sector length and get fractional value of current sector length
-			t = (t - length) / lengths[sector];
+			t = (t - length) / sectors[sector];
+			float t_0 = t;
+			// Estimate mapping of t_linear to t_constSpeed using segment lengths
+			float segTotal = 0;
+			for (int segment=0; segment<_integrationSegments; ++segment){
+				float t0 = segTotal;
+				float t1 = segTotal + segments[sector, segment];
+				if (t1 > t){
+					// Remap t
+					// Remove offset to get remainder
+					t -= t0;
+					// Get scale of segment length relative to average
+					// Equivalent to seglength / (1/intSegs)
+					float segScale = (t1 - t0) * (float)_integrationSegments;
+					// Rescale remainder
+					t /= segScale;
+					// Add linear offset back on
+					t += ((float)segment/(float)_integrationSegments);
+					break;
+				}
+				segTotal = t1;
+			}
+			Debug.Log(t_0.ToString()+" "+t.ToString());
 			return Bezier(t, nodes[sector].transform.position, nodes[sector].h2, nodes[sector+1].h1, nodes[sector+1].transform.position);
 		}
 	}
