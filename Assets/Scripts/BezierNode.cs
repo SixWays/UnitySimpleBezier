@@ -107,11 +107,17 @@ public class BezierNode : MonoBehaviour {
 		// Tell parent to draw gizmos. Parent will tell this node and all others to DrawGizmos.
 		parent.OnDrawGizmosSelected();
 	}
+#endif
 	private void Update(){
+#if UNITY_EDITOR
 		if (_symmetry != _lastSymmetry){
 			_lastSymmetry = _symmetry;
 			DoSymmetry(_h1, ref _h2, ref _dirty2);
 		}
-	}
 #endif
+		if (transform.hasChanged){
+			_dirty1 = _dirty2 = true;
+			transform.hasChanged = false;
+		}
+	}
 }

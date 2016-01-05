@@ -9,13 +9,13 @@ public class BezierCurve : MonoBehaviour {
 	[SerializeField]
 	private float _strengthScale = 1;
 	public float strengthScale {get {return _strengthScale;}}
-	[SerializeField][Tooltip("How many subdivisions per sector to use to calculate length of sector. Only used when nodes have changed, so can be high for static curves.")]
-	private float _integrationSegments = 10;
+	[SerializeField][Tooltip("Higher values give more constant speed when following path. Shape is always accurate.")]
+	private int _integrationSegments = 10;
 
 #if UNITY_EDITOR
 	[Header("Handles Preview")]
-	[SerializeField]
-	private float _previewSegments = 10;
+	[SerializeField][Range(1,25)][Tooltip("Only affects magenta preview. Does not affect shape at runtime.")]
+	private int _previewSegments = 10;
 	[SerializeField]
 	private float _handleScale = 1;
 	public float handleSize {get {return _handleScale * 0.1f;}}
