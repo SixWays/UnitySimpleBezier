@@ -6,46 +6,65 @@ namespace Sigtrap {
 	public class BezierCurve : MonoBehaviour {
 		public enum HandleType {CUBE, SPHERE}
 
-		[Header("Runtime Settings")]
+		#region Curve settings
+		[Header("Curve Settings")]
 		[SerializeField]
 		private float _strengthScale = 1;
 		public float strengthScale {get {return _strengthScale;}}
-		[SerializeField][Tooltip("Higher values give more accurate instantaneous speeds/lengths along path. Shape is always accurate.")]
-		private int _integrationSegments = 10;
 
-	#if UNITY_EDITOR
-		[Header("Handles Preview")]
-		[SerializeField][Range(1,25)][Tooltip("Only affects preview. Does not affect shape at runtime.")]
+		[SerializeField]
+		[Tooltip("Internally corrects for path stretch. Makes position along path linearly proportional to t (approx).")]
+		private bool _constantSpeed = true;
+
+		[SerializeField]
+		[Tooltip("Higher values increase accuracy of constant speed mode. Shape is always accurate.")]
+		private int _integrationSegments = 100;
+		#endregion
+
+		#region Cached curve data
+		private BezierNode[] _nodes;
+		private float _pathLength = 1;
+		private float[] _sectors;
+		private float[,] _segments;
+
+		/// <summary>
+		/// When true, curve data gets recached. Called by child nodes when changed.
+		/// </summary>
+		[HideInInspector]
+		public bool dirty = true;
+		#endregion
+
+#if UNITY_EDITOR
+		#region Editor settings
+		[Header("Editor Settings")]
+
+		[SerializeField]
+		[Range(1,25)]
+		[Tooltip("Only affects preview. Does not affect shape at runtime.")]
 		private int _previewSegments = 10;
+
 		[SerializeField]
 		private float _handleScale = 1;
-		public float handleSize {get {return _handleScale * 0.1f;}}
-		//[SerializeField]
-		private Color _curveColor = Color.magenta;
-		public Color curveColor {get {return _curveColor;}}
-		//[SerializeField]
-		private Color _handleColor = Color.green;
-		public Color handleColor {get {return _handleColor;}}
+		private float handleScale {get {return _handleScale * 0.1f;}}
 		[SerializeField]
 		private HandleType _handleWidget = HandleType.SPHERE;
-		public HandleType handleWidget {get {return _handleWidget;}}
-		[Header("Node Preview")]
 		[SerializeField]
-		private bool _showAxes = true;
+		private bool _showNodeAxes = true;
 		[SerializeField]
-		private float _axesScale = 1;
+		private float _nodeAxesScale = 1;
+		#endregion
 
 		/// <summary>
 		/// Called by editor and/or child nodes when selected to draw path and all nodes
 		/// </summary>
 		public void OnDrawGizmosSelected(){
-			BezierNode[] nodes = GetComponentsInChildren<BezierNode>();
+			_nodes = GetComponentsInChildren<BezierNode>();
 			Color gcol = Gizmos.color;
 
 			// Draw handle vectors and caps per node
 			// Handle position gizmos are drawn by BezierEditor
-			foreach (BezierNode bn in nodes){
-				Gizmos.color = handleColor;
+			foreach (BezierNode bn in _nodes){
+				Gizmos.color = Color.green;
 				Gizmos.DrawLine(bn.transform.position, bn.h1);
 				Gizmos.DrawLine(bn.transform.position, bn.h2);
 				
@@ -53,21 +72,21 @@ namespace Sigtrap {
 				System.Action<Vector3> drawWire = null;
 				
 				// Select handle primitive
-				switch (handleWidget){
+				switch (_handleWidget){
 				case BezierCurve.HandleType.CUBE:
 					drawSolid = (h) => {
-						Gizmos.DrawCube(h, Vector3.one * handleSize);
+						Gizmos.DrawCube(h, Vector3.one * handleScale);
 					};
 					drawWire = (h) => {
-						Gizmos.DrawWireCube(h, Vector3.one * handleSize);
+						Gizmos.DrawWireCube(h, Vector3.one * handleScale);
 					};
 					break;
 				case BezierCurve.HandleType.SPHERE:
 					drawSolid = (h) => {
-						Gizmos.DrawSphere(h, handleSize);
+						Gizmos.DrawSphere(h, handleScale);
 					};
 					drawWire = (h) => {
-						Gizmos.DrawWireSphere(h, handleSize);
+						Gizmos.DrawWireSphere(h, handleScale);
 					};
 					break;
 				}
@@ -88,17 +107,17 @@ namespace Sigtrap {
 					break;
 				}
 
-				if (_showAxes){
+				if (_showNodeAxes){
 					Gizmos.color = Color.blue;
-					Gizmos.DrawLine(bn.transform.position, bn.transform.position + (bn.transform.right * _axesScale));
-					Gizmos.DrawLine(bn.transform.position, bn.transform.position - (bn.transform.right * _axesScale));
+					Gizmos.DrawLine(bn.transform.position, bn.transform.position + (bn.transform.right * _nodeAxesScale));
+					Gizmos.DrawLine(bn.transform.position, bn.transform.position - (bn.transform.right * _nodeAxesScale));
 					Gizmos.color = Color.red;
-					Gizmos.DrawLine(bn.transform.position, bn.transform.position + (bn.transform.forward * _axesScale));
+					Gizmos.DrawLine(bn.transform.position, bn.transform.position + (bn.transform.forward * _nodeAxesScale));
 				}
 			}
 
 			// Draw spline
-			DrawPath(nodes);
+			DrawPath(_nodes);
 			Gizmos.color = gcol;
 		}
 		/// <summary>
@@ -107,13 +126,13 @@ namespace Sigtrap {
 		/// Must be used in #if UNITY_EDITOR #endif preprocessor command!
 		/// </summary>
 		public void DrawPath(){
-			BezierNode[] nodes = GetComponentsInChildren<BezierNode>();
+			_nodes = GetComponentsInChildren<BezierNode>();
 			Color gcol = Gizmos.color;
-			DrawPath(nodes);
+			DrawPath(_nodes);
 			Gizmos.color = gcol;
 		}
 		private void DrawPath(BezierNode[] nodes){
-			Gizmos.color = curveColor;
+			Gizmos.color = Color.magenta;
 			for (int i=0; i<nodes.Length-1; ++i){
 				BezierNode prev = nodes[i];
 				BezierNode next = nodes[i+1];
@@ -130,7 +149,7 @@ namespace Sigtrap {
 				}
 			}
 		}
-	#endif
+#endif
 
 		/// <summary>
 		/// Calculate position at t along a manually defined Bezier curve
@@ -153,78 +172,44 @@ namespace Sigtrap {
 		/// </summary>
 		/// <param name="t">T.</param>
 		public Vector3 Bezier(float t){
-			if (t< 0 || t > 1f){
-				throw new System.ArgumentOutOfRangeException("t is fraction along total curve and must be 0<=t<=1");
+			if (dirty){
+				_nodes = GetComponentsInChildren<BezierNode>();
 			}
-
-			BezierNode[] nodes = GetComponentsInChildren<BezierNode>();
-			if (nodes == null || nodes.Length == 0){
+			if (_nodes == null || _nodes.Length == 0){
 				throw new MissingComponentException("No BezierNodes found parented to BezierCurve. Cannot calculate spline.");
 			}
 
+			t = Mathf.Clamp(t, 0f, 1f);
 			if (t==0){
-				return nodes[0].transform.position;
+				return _nodes[0].transform.position;
 			}
 			if (t==1){
-				return nodes[nodes.Length-1].transform.position;
+				return _nodes[_nodes.Length-1].transform.position;
 			}
 
-			// Estimate length of each sector
-			float[] sectors = new float[nodes.Length-1];
-			float[,] segments = new float[sectors.Length,_integrationSegments];
-			// Loop over node pairs
-			for (int i=0; i<nodes.Length-1; ++i){
-				BezierNode prev = nodes[i];
-				BezierNode next = nodes[i+1];
-				
-				Vector3 lastPos = prev.transform.position;
-				Vector3 nextPos = next.transform.position;
-
-				sectors[i] = 0;
-				Vector3 p0 = lastPos;
-				Vector3 p1 = lastPos;
-				float p = 0;
-				// Loop over integration segments along sector
-				for (int j=0; j<_integrationSegments; ++j){
-					p1 = Bezier(p, lastPos, prev.h2, next.h1, nextPos);
-					// Store local length
-					segments[i,j] = Vector3.Distance(p1,p0);
-					sectors[i] += segments[i,j];
-					// Move to next segment
-					p0 = p1;
-					p += 1f/(float)_integrationSegments;
-				}
-				// Get each local length as fraction, for approximate t remapping
-				for (int j=0; j<_integrationSegments; ++j){
-					segments[i,j] /= sectors[i];
-				}
+			if (dirty){
+				ProcessCurve();
 			}
 
-			// Estimate total length
-			float length = 0;
-			foreach (float f in sectors){
-				length += f;
-			}
-
+			float length = _pathLength;
 			// Work out which sector t falls in
 			t *= length;
 			length = 0;
 			int sector = 0;
-			for (; sector<sectors.Length; ++sector){
-				if (length + sectors[sector] > t){
+			for (; sector<_sectors.Length; ++sector){
+				if (length + _sectors[sector] > t){
 					break;
 				}
-				length += sectors[sector];
+				length += _sectors[sector];
 			}
 
 			// Remove offset of previous sector length and get fractional value of current sector length
-			t = (t - length) / sectors[sector];
-			float t_0 = t;
+			t = (t - length) / _sectors[sector];
 			// Estimate mapping of t_linear to t_constSpeed using segment lengths
 			float segTotal = 0;
 			for (int segment=0; segment<_integrationSegments; ++segment){
 				float t0 = segTotal;
-				float t1 = segTotal + segments[sector, segment];
+				float t1 = segTotal + _segments[sector, segment];
 				if (t1 > t){
 					// Remap t
 					// Remove offset to get remainder
@@ -240,8 +225,47 @@ namespace Sigtrap {
 				}
 				segTotal = t1;
 			}
-			Debug.Log(t_0.ToString()+" "+t.ToString());
-			return Bezier(t, nodes[sector].transform.position, nodes[sector].h2, nodes[sector+1].h1, nodes[sector+1].transform.position);
+			dirty = false;
+			return Bezier(t, _nodes[sector].transform.position, _nodes[sector].h2, _nodes[sector+1].h1, _nodes[sector+1].transform.position);
+		}
+
+		private void ProcessCurve(){
+			// Estimate length of each sector
+			_sectors = new float[_nodes.Length-1];
+			_segments = new float[_sectors.Length,_integrationSegments];
+			// Loop over node pairs
+			for (int i=0; i<_nodes.Length-1; ++i){
+				BezierNode prev = _nodes[i];
+				BezierNode next = _nodes[i+1];
+				
+				Vector3 lastPos = prev.transform.position;
+				Vector3 nextPos = next.transform.position;
+				
+				_sectors[i] = 0;
+				Vector3 p0 = lastPos;
+				Vector3 p1 = lastPos;
+				float p = 0;
+				// Loop over integration segments along sector
+				for (int j=0; j<_integrationSegments; ++j){
+					p1 = Bezier(p, lastPos, prev.h2, next.h1, nextPos);
+					// Store local length
+					_segments[i,j] = Vector3.Distance(p1,p0);
+					_sectors[i] += _segments[i,j];
+					// Move to next segment
+					p0 = p1;
+					p += 1f/(float)_integrationSegments;
+				}
+				// Get each local length as fraction, for approximate t remapping
+				for (int j=0; j<_integrationSegments; ++j){
+					_segments[i,j] /= _sectors[i];
+				}
+			}
+			
+			// Estimate total length
+			_pathLength = 0;
+			foreach (float f in _sectors){
+				_pathLength += f;
+			}
 		}
 	}
 }

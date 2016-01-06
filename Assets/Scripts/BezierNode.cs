@@ -20,10 +20,11 @@ namespace Sigtrap {
 		#region Handle properties
 		[SerializeField][HideInInspector]
 		private Vector3 _h1 = new Vector3(0,0,-1f);
+		[SerializeField][HideInInspector]
 		private Vector3 _h1g = Vector3.zero;
 		public Vector3 h1 {
 			get {
-				if (_dirty1){
+				if (_dirty1 || _lastStrength != parent.strengthScale){
 					_h1g = LocalToGlobal(_h1);
 					_dirty1 = false;
 				}
@@ -33,14 +34,16 @@ namespace Sigtrap {
 				_h1 = GlobalToLocal(value);
 				DoSymmetry(_h1, ref _h2, ref _dirty2);
 				_dirty1 = true;
+				parent.dirty = true;
 			}
 		}
 		[SerializeField][HideInInspector]
 		private Vector3 _h2 = new Vector3(0,0,1f);
+		[SerializeField][HideInInspector]
 		private Vector3 _h2g = Vector3.zero;
 		public Vector3 h2 {
 			get {
-				if (_dirty2){
+				if (_dirty2 || _lastStrength != parent.strengthScale){
 					_h2g = LocalToGlobal(_h2);
 					_dirty2 = false;
 				}
@@ -50,6 +53,7 @@ namespace Sigtrap {
 				_h2 = GlobalToLocal(value);
 				DoSymmetry(_h2, ref _h1, ref _dirty1);
 				_dirty2 = true;
+				parent.dirty = true;
 			}
 		}
 		#endregion
@@ -66,10 +70,13 @@ namespace Sigtrap {
 					if (_parent == null){
 						throw new MissingComponentException("BezierNode must be direct child of a BezierCurve!");
 					}
+					_parent.dirty = true;
+					_lastStrength = _parent.strengthScale;
 				}
 				return _parent;
 			}
 		}
+		private float _lastStrength = 1;	// Used to check when parent strengthScale changes and recalc handles
 		#endregion
 
 		#region Handle Manipulation Methods
@@ -119,6 +126,7 @@ namespace Sigtrap {
 			if (transform.hasChanged){
 				_dirty1 = _dirty2 = true;
 				transform.hasChanged = false;
+				parent.dirty = true;
 			}
 		}
 	}
