@@ -22,16 +22,19 @@ namespace Sigtrap {
 		#endregion
 
 		#region Cached curve data
+		public float length {get; private set;}
 		private BezierNode[] _nodes;
-		private float _pathLength = 1;
-		private float[] _sectors;
-		private float[,] _segments;
+		private Sector[] _sectors;
 
+		private bool _dirty = true;
 		/// <summary>
 		/// When true, curve data gets recached. Called by child nodes when changed.
 		/// </summary>
-		[HideInInspector]
-		public bool dirty = true;
+		public bool dirty {
+			// Property to avoid serialisation
+			get {return _dirty;}
+			set {_dirty = value;}
+		}
 		#endregion
 
 #if UNITY_EDITOR
@@ -160,6 +163,7 @@ namespace Sigtrap {
 		/// <param name="handle2">Handle2.</param>
 		/// <param name="end">End.</param>
 		public static Vector3 Bezier(float t, Vector3 start, Vector3 handle1, Vector3 handle2, Vector3 end){
+			t = Mathf.Clamp01(t);
 			float u = 1f - t;
 			Vector3 result = start * u*u*u;
 			result += (3 * u*u * t * handle1);
@@ -179,7 +183,7 @@ namespace Sigtrap {
 				throw new MissingComponentException("No BezierNodes found parented to BezierCurve. Cannot calculate spline.");
 			}
 
-			t = Mathf.Clamp(t, 0f, 1f);
+			t = Mathf.Clamp01(t);
 			if (t==0){
 				return _nodes[0].transform.position;
 			}
@@ -188,83 +192,164 @@ namespace Sigtrap {
 			}
 
 			if (dirty){
-				ProcessCurve();
+				// Setup sectors, calculate constant stuff etc
+				_sectors = new Sector[_nodes.Length-1];
+				length = 0;
+				float offset = 0;
+				// Loop over node pairs
+				for (int i=0; i<_nodes.Length-1; ++i){
+					offset = length;
+					// Setup sector. Constructor does piecewise length integration.
+					_sectors[i] = new Sector(_nodes[i], _nodes[i+1], offset, _integrationSegments);
+					length += _sectors[i].length;
+				}
+				foreach (Sector s in _sectors){
+					// Set global pathlength for each sector for local transformations
+					s.pathLength = length;
+				}
+				dirty = false;
 			}
 
-			float length = _pathLength;
 			// Work out which sector t falls in
-			t *= length;
-			length = 0;
-			int sector = 0;
-			for (; sector<_sectors.Length; ++sector){
-				if (length + _sectors[sector] > t){
-					break;
+			for (int i=0; i<_sectors.Length; ++i){
+				if (_sectors[i].InSector(t)){
+					return _sectors[i].Bezier(t, _constantSpeed);
 				}
-				length += _sectors[sector];
 			}
-
-			// Remove offset of previous sector length and get fractional value of current sector length
-			t = (t - length) / _sectors[sector];
-			// Estimate mapping of t_linear to t_constSpeed using segment lengths
-			float segTotal = 0;
-			for (int segment=0; segment<_integrationSegments; ++segment){
-				float t0 = segTotal;
-				float t1 = segTotal + _segments[sector, segment];
-				if (t1 > t){
-					// Remap t
-					// Remove offset to get remainder
-					t -= t0;
-					// Get scale of segment length relative to average
-					// Equivalent to seglength / (1/intSegs)
-					float segScale = (t1 - t0) * (float)_integrationSegments;
-					// Rescale remainder
-					t /= segScale;
-					// Add linear offset back on
-					t += ((float)segment/(float)_integrationSegments);
-					break;
-				}
-				segTotal = t1;
-			}
-			dirty = false;
-			return Bezier(t, _nodes[sector].transform.position, _nodes[sector].h2, _nodes[sector+1].h1, _nodes[sector+1].transform.position);
+			return Vector3.zero;
 		}
 
-		private void ProcessCurve(){
-			// Estimate length of each sector
-			_sectors = new float[_nodes.Length-1];
-			_segments = new float[_sectors.Length,_integrationSegments];
-			// Loop over node pairs
-			for (int i=0; i<_nodes.Length-1; ++i){
-				BezierNode prev = _nodes[i];
-				BezierNode next = _nodes[i+1];
-				
-				Vector3 lastPos = prev.transform.position;
-				Vector3 nextPos = next.transform.position;
-				
-				_sectors[i] = 0;
-				Vector3 p0 = lastPos;
-				Vector3 p1 = lastPos;
-				float p = 0;
-				// Loop over integration segments along sector
-				for (int j=0; j<_integrationSegments; ++j){
-					p1 = Bezier(p, lastPos, prev.h2, next.h1, nextPos);
-					// Store local length
-					_segments[i,j] = Vector3.Distance(p1,p0);
-					_sectors[i] += _segments[i,j];
-					// Move to next segment
-					p0 = p1;
-					p += 1f/(float)_integrationSegments;
-				}
-				// Get each local length as fraction, for approximate t remapping
-				for (int j=0; j<_integrationSegments; ++j){
-					_segments[i,j] /= _sectors[i];
+		private class Sector {
+			private BezierNode _start;
+			private BezierNode _end;
+
+			private float _offset;
+			public float length {get; private set;}
+			private float _tOffset;
+			private float _tLength;
+			private float[] _segmentT1s;
+			public float pathLength {
+				set {
+					_tOffset = _offset/value;
+					_tLength = length/value;
 				}
 			}
-			
-			// Estimate total length
-			_pathLength = 0;
-			foreach (float f in _sectors){
-				_pathLength += f;
+
+			private Vector3 _d1;
+			private Vector3 _d2;
+			private Vector3 _d3;
+
+			public Sector(BezierNode start, BezierNode end, float offset, int integrationSegments){
+				_start = start;
+				_end = end;
+				_offset = offset;
+				_segmentT1s = new float[integrationSegments];
+
+				// Get constant terms of derivative
+				_d1 = -(3 * _start.transform.position) + (9 * _start.h2) - (9 * _end.h1) + (3 * _end.transform.position);
+				_d2 = (6 * _start.transform.position) - (12 * _start.h2) + (6 * _end.h1);
+				_d3 = -(3 * _start.transform.position) + (3 * _start.h2);
+
+				// Calculate segment lengths
+				Vector3 s = _start.transform.position;
+				Vector3 e = _end.transform.position;
+				Vector3 h2 = _start.h2;
+				Vector3 h1 = _end.h1;
+				Vector3 p0 = _start.transform.position;
+				Vector3 p1 = _start.transform.position;
+				float t = 0;
+				
+				// Loop over integration segments along sector
+				for (int i=0; i<_segmentT1s.Length; ++i){
+					p1 = BezierCurve.Bezier(t, s, h2, h1, e);
+					// Store local length
+					_segmentT1s[i] = Vector3.Distance(p1,p0);
+					length += _segmentT1s[i];
+					// Move to next segment
+					p0 = p1;
+					t += 1f/(float)_segmentT1s.Length;
+				}
+				
+				// Get each local length as fraction, for approximate t remapping
+				for (int i=0; i<_segmentT1s.Length; ++i){
+					_segmentT1s[i] /= length;
+				}
+			}
+			private float GlobalToLocalT(float t){
+				if (_tOffset < 0 || _tLength <= 0){
+					throw new System.Exception("Sector.pathLength must be set after calling Setup!");
+				}
+				return (t - _tOffset) / _tLength;
+			}
+			private float RemapPiecewise(float tLocal){
+				float t0 = 0;
+				float t1 = 0;
+				// Find segment t resides in, and remap according to that
+				for (int segment=0; segment<_segmentT1s.Length; ++segment){
+					t1 += _segmentT1s[segment];
+					if (t1 > tLocal){
+						// Remove offset to get remainder
+						tLocal -= t0;
+						// Get scale of segment length relative to average
+						// Equivalent to seglength / (1/intSegs)
+						float segScale = (t1 - t0) * (float)_segmentT1s.Length;
+						// Rescale remainder
+						tLocal /= segScale;
+						// Add linear offset back on
+						tLocal += ((float)segment/(float)_segmentT1s.Length);
+						break;
+					}
+					t0 = t1;
+				}
+				return tLocal;
+			}
+
+			/// <summary>
+			/// Is the given global t within this sector?
+			/// </summary>
+			/// <returns><c>true</c> if given global t falls within this sector</returns>
+			/// <param name="tGlobal">Global t</param>
+			public bool InSector(float tGlobal){
+				return (tGlobal >= _tOffset && tGlobal < (_tOffset + _tLength));
+			}
+			/// <summary>
+			/// Calculate position from given global t, using piecewise stretch correction (or none)
+			/// </summary>
+			/// <param name="tGlobal">Global t</param>
+			/// <param name="unstretch">If true, correct stretch with piecewise approximation</param>
+			public Vector3 Bezier(float tGlobal, bool unstretch=true){
+				tGlobal = GlobalToLocalT(tGlobal);
+				if (unstretch){
+					// Remap t
+					tGlobal = RemapPiecewise(tGlobal);
+				}
+				return BezierCurve.Bezier(tGlobal, _start.transform.position, _start.h2, _end.h1, _end.transform.position);
+			}
+			/// <summary>
+			/// Calculate position from current global t and global dT using differential stretch correction
+			/// If no dT given, remaps t using piecewise approximation
+			/// </summary>
+			/// <param name="tGlobal">T global.</param>
+			/// <param name="dtGlobal">Dt global.</param>
+			public Vector3 Bezier(ref float tGlobal, float dtGlobal=0){
+				tGlobal = Mathf.Clamp01(tGlobal);
+				float tLocal = GlobalToLocalT(tGlobal);
+
+				// Remap local t
+				if (dtGlobal == 0){
+					// If no dT, get piecewise-remapped approx of t
+					tLocal = RemapPiecewise(tLocal);
+				} else {
+					// Get local derivative
+					float dCdT = ((tLocal * tLocal * _d1) + (tLocal * _d2) + _d3).magnitude;
+					// Transform global dT to local, then multiply by local derivative. Add transformed increment to t.
+					tLocal += (dtGlobal * _tLength * dCdT);
+				}
+
+				// Transform local t back to global.
+				tGlobal = _tOffset + (tLocal * _tLength);
+
+				return Bezier(tLocal, false);
 			}
 		}
 	}
