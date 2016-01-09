@@ -60,13 +60,13 @@ namespace Sigtrap {
 
 		#region Curve parent
 		private Transform _parentTrans;
-		private BezierCurve _parent;
-		private BezierCurve parent {
+		private BezierSpline _parent;
+		private BezierSpline parent {
 			get {
 				// Check for changed parent
 				if (_parent == null || transform.parent != _parentTrans){
 					_parentTrans = transform.parent;
-					_parent = _parentTrans.GetComponent<BezierCurve>();
+					_parent = _parentTrans.GetComponent<BezierSpline>();
 					if (_parent == null){
 						throw new MissingComponentException("BezierNode must be direct child of a BezierCurve!");
 					}
