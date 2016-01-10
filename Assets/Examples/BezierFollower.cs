@@ -48,7 +48,9 @@ namespace Sigtrap {
 					// If not auto-following, just apply t manually
 					transform.position = path.Spline(t, speedCorrection!=CorrectionMode.NONE);
 				}
-				transform.forward = path.Tangent(t, speedCorrection!=CorrectionMode.NONE);
+				if (rotate){
+					transform.forward = path.Tangent(t, speedCorrection!=CorrectionMode.NONE);
+				}
 			}
 		}
 

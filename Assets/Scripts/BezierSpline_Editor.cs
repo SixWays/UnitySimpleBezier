@@ -90,7 +90,7 @@ namespace Sigtrap {
 			}
 
 			// Draw spline
-			DrawPath(_nodes, _showTangents);
+			DrawPath(_nodes);
 
 			Gizmos.DrawLine(SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.1f,0.5f,0f)),
 			                SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.9f,0.5f,0f)));
@@ -109,7 +109,7 @@ namespace Sigtrap {
 			DrawPath(_nodes);
 			Gizmos.color = gcol;
 		}
-		private void DrawPath(BezierNode[] nodes, bool tangs=false){
+		private void DrawPath(BezierNode[] nodes){
 			if (dirty){
 				GetNodes();
 				Precache();
@@ -135,7 +135,7 @@ namespace Sigtrap {
 					Gizmos.color = Color.magenta;
 					Gizmos.DrawLine(lastPos, nextPos);
 
-					if (tangs){
+					if (_showTangents){
 						Vector3 tang = (_sectors[i].TanLocal(t,false)) * _tangentScale * 0.1f;
 						Gizmos.color = Color.cyan;
 						Gizmos.DrawLine(nextPos, tang+nextPos);

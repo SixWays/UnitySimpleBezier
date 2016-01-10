@@ -265,7 +265,7 @@ namespace Sigtrap {
 					// Remap t
 					tGlobal = RemapPiecewise(tGlobal);
 				}
-				return BezierSpline.Curve(tGlobal, _start.transform.position, _start.h2, _end.h1, _end.transform.position);
+				return Curve(tGlobal);
 			}
 			/// <summary>
 			/// Calculate position from current global t and global dT using differential stretch correction
@@ -284,8 +284,8 @@ namespace Sigtrap {
 				} else {
 					// Get local derivative
 					float dCdT = ((3 * _c1 * tLocal * tLocal) + (2 * _c2 * tLocal) + _c3).magnitude;
-					// Transform global dT to local, then multiply by local derivative. Add transformed increment to t.
-					tLocal += (dtGlobal * _tLength) * dCdT;
+					// Transform global dT to local, then divide by local derivative. Add transformed increment to t.
+					tLocal += (dtGlobal / _tLength) / dCdT;
 				}
 
 				// Transform local t back to global.
