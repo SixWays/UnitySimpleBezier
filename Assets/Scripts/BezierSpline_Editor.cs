@@ -31,7 +31,7 @@ namespace Sigtrap {
 		/// Called by editor and/or child nodes when selected to draw path and all nodes
 		/// </summary>
 		public void OnDrawGizmosSelected(){
-			_nodes = GetComponentsInChildren<BezierNode>();
+			GetNodes();
 			Color gcol = Gizmos.color;
 
 			// Draw handle vectors and caps per node
@@ -91,10 +91,10 @@ namespace Sigtrap {
 
 			// Draw spline
 			DrawPath(_nodes);
-
-			Gizmos.DrawLine(SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.1f,0.5f,0f)),
-			                SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.9f,0.5f,0f)));
-
+			try {
+				Gizmos.DrawLine(SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.1f,0.5f,0f)),
+				                SceneView.lastActiveSceneView.camera.ViewportToWorldPoint(new Vector3(0.9f,0.5f,0f)));
+			} catch {}
 			Gizmos.color = gcol;
 		}
 
@@ -104,17 +104,13 @@ namespace Sigtrap {
 		/// Must be used in #if UNITY_EDITOR #endif preprocessor command!
 		/// </summary>
 		public void DrawPath(){
-			_nodes = GetComponentsInChildren<BezierNode>();
+			GetNodes();
 			Color gcol = Gizmos.color;
 			DrawPath(_nodes);
 			Gizmos.color = gcol;
 		}
 		private void DrawPath(BezierNode[] nodes){
-			if (dirty){
-				GetNodes();
-				Precache();
-				dirty = false;
-			}
+			CacheIfDirty();
 			Gizmos.color = Color.magenta;
 			for (int i=0; i<nodes.Length-1; ++i){
 				BezierNode prev = nodes[i];

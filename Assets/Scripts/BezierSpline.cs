@@ -15,6 +15,10 @@ namespace Sigtrap {
 		[SerializeField]
 		[Tooltip("Higher values increase accuracy of constant speed mode. Shape is always accurate.")]
 		private int _integrationSegments = 100;
+
+		[SerializeField]
+		private bool _closed = false;
+		private bool _wasClosed = false;
 		#endregion
 
 		#region Cached curve data
@@ -27,8 +31,13 @@ namespace Sigtrap {
 		/// When true, curve data gets recached. Called by child nodes when changed.
 		/// </summary>
 		public bool dirty {
-			// Property to avoid serialisation
-			get {return _dirty;}
+			get {
+				if (_closed != _wasClosed){
+					_wasClosed = _closed;
+					return true;
+				}
+				return _dirty;
+			}
 			set {_dirty = value;}
 		}
 		#endregion
@@ -88,11 +97,6 @@ namespace Sigtrap {
 		/// <param name="t">T.</param>
 		/// <param name="unstretch">If set to <c>true</c> use stretch correction.</param>
 		public Vector3 Tangent(float t, bool unstretch){
-			if (dirty){
-				GetNodes();
-				Precache();
-				dirty = false;
-			}
 			return GetSector(t).TanGlobal(t, unstretch);
 		}
 		#endregion
@@ -121,6 +125,10 @@ namespace Sigtrap {
 			if (_nodes == null || _nodes.Length == 0){
 				throw new MissingComponentException("No BezierNodes found parented to BezierCurve. Cannot calculate spline.");
 			}
+			if (_closed && _nodes.Length > 1){
+				System.Array.Resize(ref _nodes, _nodes.Length + 1);
+				_nodes[_nodes.Length - 1] = _nodes[0];
+			}
 		}
 		private void Precache(){
 			// Setup sectors, calculate constant stuff etc
@@ -139,7 +147,15 @@ namespace Sigtrap {
 				s.pathLength = length;
 			}
 		}
+		private void CacheIfDirty(){
+			if (dirty){
+				GetNodes();
+				Precache();
+				dirty = false;
+			}
+		}
 		private Sector GetSector(float t){
+			CacheIfDirty();
 			if (t == 0){
 				return _sectors[0];
 			}
