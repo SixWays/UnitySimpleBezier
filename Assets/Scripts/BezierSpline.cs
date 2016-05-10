@@ -19,6 +19,7 @@ namespace Sigtrap {
 		[SerializeField]
 		private bool _closed = false;
 		private bool _wasClosed = false;
+		public bool closed {get {return _closed;}}
 		#endregion
 
 		#region Cached curve data

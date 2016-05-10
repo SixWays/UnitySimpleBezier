@@ -124,10 +124,6 @@ namespace Sigtrap {
 					t += 1f/_previewSegments;
 					nextPos = Curve(t, prev.transform.position, prev.h2, next.h1, next.transform.position);
 
-					/*Color col = Color.green.ToHSV();
-					col.r = Mathf.Clamp(col.r + 180 * ((1/diff)-1), 0, 360);
-					col = col.ToRGB();
-					Gizmos.color = col;*/
 					Gizmos.color = Color.magenta;
 					Gizmos.DrawLine(lastPos, nextPos);
 
