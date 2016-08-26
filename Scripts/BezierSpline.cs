@@ -1,9 +1,23 @@
 ﻿using UnityEngine;
 using System.Collections;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 // Runtime code for BezierCurve
 namespace Sigtrap {
 	public partial class BezierSpline : MonoBehaviour {
+		#if UNITY_EDITOR
+		[MenuItem("GameObject/Create Simple Bezier")]
+		public static void AddPrefab(){
+			GameObject go = Instantiate(Resources.Load<GameObject>("SimpleBezierPrefab"));
+			if (go){
+				go.name = "SimpleBezierPrefab";
+				Selection.activeGameObject = go;
+			}
+		}
+		#endif
+
 		public enum HandleType {CUBE, SPHERE}
 
 		#region Curve settings
