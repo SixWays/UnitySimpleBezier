@@ -7,8 +7,10 @@ using System.Collections;
 namespace Sigtrap {
 	[ExecuteInEditMode]
 	public class BezierFollower : MonoBehaviour {
-		private enum CorrectionMode {NONE, PIECEWISE, DIFFERENTIAL}
+		public enum LoopMode {NONE, LOOP, BOUNCE}
 		public BezierSpline path;
+		[Tooltip("+1 to follow path forward, -1 to follow backwards")]
+		public int forward = 1;
 		[Range(0f,1f)]
 		public float t;
 		[Header("Autofollow")]
@@ -17,50 +19,63 @@ namespace Sigtrap {
 		private int dir = 1;
 		[Tooltip("Rotate transform to align with spline")]
 		public bool rotate = true;
-		[SerializeField]
-		[Tooltip("If PIECEWISE or DIFFERENTIAL, speed will be linearly corrected for stretching of spline.")]
-		private CorrectionMode speedCorrection = CorrectionMode.PIECEWISE;
+		[Tooltip("If on, speed will be linearly corrected for stretching of spline.")]
+		private bool speedCorrection = true;
+		public LoopMode loopMode = LoopMode.LOOP;
 
 		void Update(){
 			if (path){
 				// Only use auto mode when playing; makes no sense when manually sliding t in editor
 				if (auto && Application.isPlaying){
-					switch (speedCorrection){
-					case CorrectionMode.NONE:
-					case CorrectionMode.PIECEWISE:
+					if (speedCorrection){
 						// Increment t manually
-						t += (speed * Time.deltaTime * dir);
+						t += (speed * Time.deltaTime * dir * forward);
 						// Clamp t and flip direction if necessary
 						UpdateT();
 						// Get position along curve, using piecewise correction or no correction
-						transform.position = path.Spline(t, speedCorrection==CorrectionMode.PIECEWISE);
-						break;
-					case CorrectionMode.DIFFERENTIAL:
-						// Get position along curve using differential correction
-						// Bezier method automatically increments t by corrected amount
-						// MUST store t!
-						transform.position = path.Spline(ref t, speed * Time.deltaTime * dir);
-						// Clamp t and flip direction if necessary
-						UpdateT();
-						break;
+						transform.position = path.Spline(t, true);
 					}
 				} else {
 					// If not auto-following, just apply t manually
-					transform.position = path.Spline(t, speedCorrection!=CorrectionMode.NONE);
+					transform.position = path.Spline(t, speedCorrection);
 				}
 				if (rotate){
-					transform.forward = path.Tangent(t, speedCorrection!=CorrectionMode.NONE);
+					transform.forward = forward * path.Tangent(t, speedCorrection);
 				}
 			}
 		}
 
 		void UpdateT(){
 			if (t >= 1){
-				t = 1;
-				dir = -1;
+				switch (loopMode){
+					case LoopMode.NONE:
+						t = 1;
+						dir = 0;
+						break;
+					case LoopMode.BOUNCE:
+						t = 1;
+						dir = -1 * forward;
+						break;
+					case LoopMode.LOOP:
+						t = 0;
+						dir = 1 * forward;
+						break;
+				}
 			} else if (t <= 0){
-				t = 0;
-				dir = 1;
+				switch (loopMode){
+					case LoopMode.NONE:
+						t = 0;
+						dir = 0;
+						break;
+					case LoopMode.BOUNCE:
+						t = 0;
+						dir = 1 * forward;
+						break;
+					case LoopMode.LOOP:
+						t = 1;
+						dir = -1 * forward;
+						break;
+				}
 			}
 		}
 
