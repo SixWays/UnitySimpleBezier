@@ -15,6 +15,10 @@ namespace Sigtrap {
 		public float t;
 		[Header("Autofollow")]
 		public bool auto = false;
+		public bool autofollow {
+			get {return auto;}
+			set {auto = value;}
+		}
 		public float speed = 0.1f;
 		private int dir = 1;
 		[Tooltip("Rotate transform to align with spline")]
