@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
 using UnityEditor;
 using System.Collections;
+using Sigtrap.Bezier;
 
-namespace Sigtrap {
+namespace Sigtrap.Bezier.Editors {
 	[CustomEditor(typeof(BezierNode))]
-	public class BezierEditor : Editor {
+	public class BezierNodeEditor : Editor {
 		[DrawGizmo(GizmoType.Selected)]
 		public void OnSceneGUI(){
 			BezierNode bn = (BezierNode)target;

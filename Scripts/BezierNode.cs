@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-namespace Sigtrap {
+namespace Sigtrap.Bezier {
 	[ExecuteInEditMode]
 	public class BezierNode : MonoBehaviour {
 		public enum Symmetry {FULL, ANGLE, NONE}

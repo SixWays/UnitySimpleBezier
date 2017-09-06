@@ -4,10 +4,11 @@ using UnityEditor;
 using UnityEngine;
 using System.Collections;
 
-namespace Sigtrap {
+namespace Sigtrap.Bezier {
 	[ExecuteInEditMode]
 	public class BezierFollower : MonoBehaviour {
 		public enum LoopMode {NONE, LOOP, BOUNCE}
+		public enum RotateMode {NONE, TANGENT, TRANSFORM}
 		public BezierSpline path;
 		[Tooltip("+1 to follow path forward, -1 to follow backwards")]
 		public int forward = 1;
@@ -21,13 +22,13 @@ namespace Sigtrap {
 		}
 		public float speed = 0.1f;
 		private int dir = 1;
-		[Tooltip("Rotate transform to align with spline")]
-		public bool rotate = true;
 		[Tooltip("If on, speed will be linearly corrected for stretching of spline.")]
 		private bool speedCorrection = true;
 		public LoopMode loopMode = LoopMode.LOOP;
+		[Tooltip("TANGENT: Rotate transform to align with spline\nTRANSFORM: Slerp rotation between node transforms")]
+		public RotateMode rotate = RotateMode.NONE;
 
-		void Update(){
+		void LateUpdate(){
 			if (path){
 				// Only use auto mode when playing; makes no sense when manually sliding t in editor
 				if (auto && Application.isPlaying){
@@ -43,8 +44,13 @@ namespace Sigtrap {
 					// If not auto-following, just apply t manually
 					transform.position = path.Spline(t, speedCorrection);
 				}
-				if (rotate){
-					transform.forward = forward * path.Tangent(t, speedCorrection);
+				switch (rotate){
+					case RotateMode.TANGENT:
+						transform.forward = forward * path.Tangent(t, speedCorrection);
+						break;
+					case RotateMode.TRANSFORM:
+						transform.rotation = path.Rotation(t);
+						break;
 				}
 			}
 		}
@@ -85,7 +91,9 @@ namespace Sigtrap {
 
 		#if UNITY_EDITOR
 		void OnDrawGizmosSelected(){
-			path.DrawPath();
+			if (path) {
+				path.DrawPath();
+			}
 		}
 		#endif
 	}

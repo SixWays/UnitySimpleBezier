@@ -3,8 +3,8 @@ using UnityEngine;
 using UnityEditor;
 using System.Collections;
 
-// Editor code for Bezier Curve
-namespace Sigtrap {
+// Gizmos code for Bezier Curve
+namespace Sigtrap.Bezier {
 	public partial class BezierSpline : MonoBehaviour {
 		[Header("Editor Settings")]
 
@@ -31,7 +31,7 @@ namespace Sigtrap {
 		/// Called by editor and/or child nodes when selected to draw path and all nodes
 		/// </summary>
 		public void OnDrawGizmosSelected(){
-			GetNodes();
+			if(!GetNodes())return;
 			Color gcol = Gizmos.color;
 
 			// Draw handle vectors and caps per node
